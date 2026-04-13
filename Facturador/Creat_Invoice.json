@@ -1,0 +1,98 @@
+{
+  "name": "n8n-Template-Facturador-ARCA",
+  "nodes": [
+    {
+      "parameters": {
+        "pollTimes": {
+          "item": [{"mode": "everyMinute"}]
+        },
+        "documentId": {"__rl": true, "value": "TU_SPREADSHEET_ID", "mode": "list"},
+        "sheetName": {"__rl": true, "value": "NOMBRE_HOJA", "mode": "list"},
+        "event": "rowAdded",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheetsTrigger",
+      "typeVersion": 1,
+      "position": [112, 32],
+      "id": "trigger-gs",
+      "name": "Disparador"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {"id": "c1", "name": "Concepto", "value": 2, "type": "number"},
+            {"id": "c2", "name": "DocNro", "value": "={{ $('Disparador').item.json.CUIT }}", "type": "number"},
+            {"id": "c3", "name": "CbteTipo", "value": 1, "type": "number"},
+            {"id": "c4", "name": "ImpNeto", "value": "={{ $('Disparador').item.json['Importe bruto'] }}", "type": "number"},
+            {"id": "c5", "name": "ImpIVA", "value": "={{ $('Disparador').item.json.IVA }}", "type": "number"},
+            {"id": "c6", "name": "ImpTotal", "value": "={{ $('Disparador').item.json['Importe Facturado'] }}", "type": "number"},
+            {"id": "c7", "name": "MonId", "value": "PES", "type": "string"},
+            {"id": "c8", "name": "Cliente", "value": "={{ $('Disparador').item.json.Cliente }}", "type": "string"}
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [928, 32],
+      "id": "set-info",
+      "name": "Prepara Informacion"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://app.afipsdk.com/api/v1/afip/auth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [{"name": "Authorization", "value": "Bearer TU_TOKEN_SDK"}]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "{\n  \"tax_id\": \"TU_CUIT\",\n  \"environment\": \"prod\",\n  \"wsid\": \"wsfe\",\n  \"cert\": \"-----BEGIN CERTIFICATE-----\\nTU_CERTIFICADO_PUBLICO_AQUI\\n-----END CERTIFICATE-----\",\n  \"key\": \"-----BEGIN PRIVATE KEY-----\\nTU_LLAVE_PRIVADA_AQUI\\n-----END PRIVATE KEY-----\"\n}"
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [208, 288],
+      "id": "auth-afip",
+      "name": "Autorización"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Lógica de emisor sanitizada para el portafolio\nconst emisor = {\n  razonSocial: \"TU_RAZON_SOCIAL\",\n  cuit: \"TU_CUIT\",\n  iibb: \"TU_IIBB\",\n  domicilio: \"TU_DOMICILIO_COMERCIAL\",\n  inicioAct: \"DD/MM/YYYY\"\n};\n// ... resto de la lógica de generación de HTML para la factura ..."
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [208, 528],
+      "id": "html-gen",
+      "name": "Crear Factura"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://html2pdfapi.com/api/render",
+        "sendBody": true,
+        "contentType": "raw",
+        "rawContentType": "application/json",
+        "body": "={{ JSON.stringify({ \"apiKey\": \"TU_API_KEY_PDF\", \"html\": $json.html, \"type\": \"pdf\" }) }}",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "file",
+              "outputPropertyName": "=Factura_{{ $('Prepara Informacion').item.json.Cliente }}"
+            }
+          }
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [416, 528],
+      "id": "pdf-gen",
+      "name": "Generar PDF"
+    }
+  ],
+  "connections": {
+    "Disparador": {"main": [[{"node": "Prepara Informacion", "type": "main", "index": 0}]]},
+    "Prepara Informacion": {"main": [[{"node": "Autorización", "type": "main", "index": 0}]]}
+  }
+}

@@ -1,0 +1,72 @@
+{
+  "name": "n8n-Template-IA-Email-to-Sheets",
+  "nodes": [
+    {
+      "parameters": {
+        "pollTimes": {
+          "item": [{"mode": "everyMinute"}]
+        },
+        "filters": {
+          "q": "from:ejemplo@gmail.com after:2026/01/01"
+        }
+      },
+      "type": "n8n-nodes-base.gmailTrigger",
+      "typeVersion": 1.3,
+      "position": [992, -528],
+      "id": "gmail-trigger",
+      "name": "Disparador"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=CONTENIDO DEL MAIL A PROCESAR:\n{{ $json.texto_ia }}\nInstrucción: Extraé los datos contables para Argentina (CUIT, Importes, Fechas).",
+        "hasOutputParser": true,
+        "options": {
+          "systemMessage": "Actuá como un experto contable argentino. Extraé la información para completar un JSON con los campos de facturación correspondientes."
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3,
+      "position": [1008, -304],
+      "id": "ai-agent",
+      "name": "Procesador de mail"
+    },
+    {
+      "parameters": {
+        "modelName": "models/gemini-1.5-flash",
+        "options": { "temperature": 0.2 }
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+      "typeVersion": 1,
+      "position": [1024, -112],
+      "id": "gemini-model",
+      "name": "Cerebro"
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {"__rl": true, "value": "TU_SPREADSHEET_ID", "mode": "list"},
+        "sheetName": {"__rl": true, "value": "NOMBRE_HOJA", "mode": "list"},
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Fecha": "={{ $json.output.fecha_doc }}",
+            "Cliente": "={{ $json.output.cliente }}",
+            "CUIT": "={{ $json.output.cuit }}",
+            "Total": "={{ $json.output.importe_facturado }}"
+          }
+        }
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [1648, -96],
+      "id": "gs-register",
+      "name": "Registrar Factura"
+    }
+  ],
+  "connections": {
+    "Disparador": {"main": [[{"node": "ai-agent", "type": "main", "index": 0}]]},
+    "Cerebro": {"ai_languageModel": [[{"node": "ai-agent", "type": "ai_languageModel", "index": 0}]]},
+    "ai-agent": {"main": [[{"node": "gs-register", "type": "main", "index": 0}]]}
+  }
+}
